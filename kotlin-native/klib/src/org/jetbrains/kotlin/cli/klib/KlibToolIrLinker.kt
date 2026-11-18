@@ -10,10 +10,12 @@ import org.jetbrains.kotlin.backend.common.linkage.partial.PartiallyLinkedDeclar
 import org.jetbrains.kotlin.backend.common.overrides.IrLinkerFakeOverrideProvider
 import org.jetbrains.kotlin.backend.common.serialization.BasicIrModuleDeserializer
 import org.jetbrains.kotlin.backend.common.serialization.DeserializationStrategyResolver
+import org.jetbrains.kotlin.backend.common.serialization.IrLinkerInternalApi
 import org.jetbrains.kotlin.backend.common.serialization.IrModuleDeserializer
 import org.jetbrains.kotlin.backend.common.serialization.KotlinIrLinker
 import org.jetbrains.kotlin.backend.common.serialization.deserializeIrSymbolOrFail
 import org.jetbrains.kotlin.backend.common.serialization.encodings.BinarySymbolData.SymbolKind
+import org.jetbrains.kotlin.backend.common.serialization.encodings.BinarySymbolData.SymbolKind.CLASS_SYMBOL
 import org.jetbrains.kotlin.backend.konan.serialization.KonanInteropModuleDeserializer
 import org.jetbrains.kotlin.backend.konan.serialization.KonanManglerIr
 import org.jetbrains.kotlin.config.LanguageVersionSettingsImpl
@@ -132,6 +134,23 @@ internal class KlibToolIrLinker(
 
         override val klib: KotlinLibrary get() = error("The emulated standard library has no Klib")
         override val contributedPackageNames: Set<FqName>? get() = null
+
+        @IrLinkerInternalApi
+        override fun findAndEnqueueSymbolOrNull(signature: IdSignature, kind: SymbolKind): IrSymbol? {
+            if (kind != CLASS_SYMBOL) return null
+
+            val packageFqName = (signature as? IdSignature.CommonSignature)?.packageFqName() ?: return null
+            if (EMULATED_PACKAGE_NAMES.none { packageFqName.startsWith(it) }) return null
+
+            var outerClass: IrClass? = null
+            return signature.classSignaturesFromOutermostToInnermost().map { signature ->
+                symbolTable.declareClassIfNotExists(
+                        signature = signature,
+                        symbolFactory = { IrClassSymbolImpl(signature = signature) },
+                        classFactory = { symbol -> generateStubClass(symbol, outerClass = outerClass) },
+                ).also { outerClass = it }
+            }.last().symbol
+        }
 
         override fun contains(idSig: IdSignature): Boolean {
             val packageFqName = (idSig as? IdSignature.CommonSignature)?.packageFqName() ?: return false

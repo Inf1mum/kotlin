@@ -98,6 +98,17 @@ abstract class BasicIrModuleDeserializer(
         }
     }
 
+    @IrLinkerInternalApi
+    override fun findAndEnqueueSymbolOrNull(signature: IdSignature, kind: BinarySymbolData.SymbolKind): IrSymbol? {
+        val topLevelSignature = signature.topLevelSignature()
+        val fileLocalDeserializationState = moduleReversedFileIndex[topLevelSignature] ?: return null
+
+        fileLocalDeserializationState.addIdSignature(topLevelSignature)
+        moduleDeserializationState.enqueueFile(fileLocalDeserializationState)
+
+        return fileLocalDeserializationState.fileDeserializer.symbolDeserializer.deserializeSymbolWithOwnerInCurrentFile(signature, kind)
+    }
+
     // TODO: fix to topLevel checker
     override fun contains(idSig: IdSignature): Boolean = idSig.topLevelSignature() in moduleReversedFileIndex
 
