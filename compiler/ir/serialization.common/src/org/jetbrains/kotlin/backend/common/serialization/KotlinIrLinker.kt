@@ -270,7 +270,7 @@ abstract class KotlinIrLinker(
                 // Symbol could get bound as a side effect of deserializing other symbols.
                 if (!symbol.isBound && triedToDeserializeDeclarationForSymbol.add(symbol)) {
                     val signature = symbol.signature ?: continue
-                    getSymbolAndPutIntoQueue(signature, symbol.kind())
+                    findAndEnqueueSymbolOrNull(signature, symbol.kind())
                 }
             }
             deserializeAllReachableTopLevels()
@@ -328,15 +328,25 @@ abstract class KotlinIrLinker(
      * @return The symbol, or `null` if none of the modules contains a declaration with the given [signature].
      */
     fun getSymbolAndPutIntoQueue(signature: IdSignature, kind: BinarySymbolData.SymbolKind): IrSymbol? {
-        val symbol = firstNotNullOfModuleDeserializersOrNull(signature.packageFqName()) { moduleDeserializer ->
-            moduleDeserializer.findAndEnqueueSymbolOrNull(signature, kind)
-        }
-
+        val symbol = findAndEnqueueSymbolOrNull(signature, kind)
         if (symbol != null && finished) deserializeAllReachableTopLevels()
-
         return symbol
     }
 
+    /**
+     * Looks up the symbol with the given [signature] and [kind] in the modules known to this linker
+     * and schedules the corresponding declaration for deserialization.
+     *
+     * The symbol is taken from the first module that contains [signature].
+     *
+     * @return The symbol, or `null` if none of the modules contains a declaration with the given [signature].
+     */
+    @IrLinkerInternalApi
+    fun findAndEnqueueSymbolOrNull(signature: IdSignature, kind: BinarySymbolData.SymbolKind): IrSymbol? {
+        return firstNotNullOfModuleDeserializersOrNull(signature.packageFqName()) { moduleDeserializer ->
+            moduleDeserializer.findAndEnqueueSymbolOrNull(signature, kind)
+        }
+    }
 
     /**
      * Drops everything interned by [irInterner] during IR deserialization to free memory.
