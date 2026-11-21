@@ -316,6 +316,15 @@ abstract class KotlinIrLinker(
     }
 
     /**
+     * Same as [findAndEnqueueSymbolOrNull], but returns an unbound symbol if none of the modules contains
+     * a declaration with the given [signature]. Such a symbol is handled by the partial linkage later.
+     */
+    @IrLinkerInternalApi
+    fun findAndEnqueueSymbolOrUnbound(signature: IdSignature, kind: BinarySymbolData.SymbolKind): IrSymbol =
+        findAndEnqueueSymbolOrNull(signature, kind)
+            ?: referenceDeserializedSymbol(symbolTable, null, kind, signature)
+
+    /**
      * Drops everything interned by [irInterner] during IR deserialization to free memory.
      *
      * Call it only when deserialization is over: instances interned afterwards are not deduplicated

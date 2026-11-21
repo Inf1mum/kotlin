@@ -57,6 +57,7 @@ import kotlin.metadata.*
  * It returns regular (non-lazy), body-less IR, with a top-level-class grauallity (i.e. even if one class member is referenced, it
  * deserializes the entire top-level class along with its nested classes).
  */
+@OptIn(IrLinkerInternalApi::class)
 class KonanInteropModuleDeserializer(
     private val deserializationConfiguration: DeserializationConfiguration,
     moduleFragment: IrModuleFragment,
@@ -118,7 +119,7 @@ class KonanInteropModuleDeserializer(
         declarationTracker = declarationTracker,
         getNestedKmClass = { classId -> metadataReader.retrieveDeclarationsById(classId.toDeclarationId(), removeMetadataRepresentation = true)?.first() as KmClass? },
         getOrCreateContainingPackageFragment = ::getOrCreateContainingPackageFragment,
-        getReferencedDeclarationSymbol = { signature, kind -> linker.deserializeOrReturnUnboundIrSymbolIfPartialLinkageEnabled(signature, kind, this) },
+        getReferencedDeclarationSymbol = { signature, kind -> linker.findAndEnqueueSymbolOrUnbound(signature, kind) },
         irProviderForLazyAnnotations = linker,
     )
 
@@ -332,7 +333,7 @@ class KonanInteropModuleDeserializer(
                 // Ask linker about the class instead of deserializing it directly from metadata.
                 // This ensures that, if two interop Klibs define a class with the same ID, only one of them will be chosen, deterministically.
                 val classSig = ClassId.fromString(kmClass.name).toCInteropSignature(isCInterop = true)
-                linker.deserializeOrReturnUnboundIrSymbolIfPartialLinkageEnabled(classSig, BinarySymbolData.SymbolKind.CLASS_SYMBOL, this)
+                linker.findAndEnqueueSymbolOrNull(classSig, BinarySymbolData.SymbolKind.CLASS_SYMBOL)
             }
         }
     }
