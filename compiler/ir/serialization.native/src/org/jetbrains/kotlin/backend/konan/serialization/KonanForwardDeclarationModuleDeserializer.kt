@@ -27,6 +27,7 @@ import org.jetbrains.kotlin.ir.types.defaultTypeWithoutArguments
 import org.jetbrains.kotlin.ir.util.IdSignature
 import org.jetbrains.kotlin.ir.util.addChild
 import org.jetbrains.kotlin.ir.util.createThisReceiverParameter
+import org.jetbrains.kotlin.ir.util.render
 import org.jetbrains.kotlin.library.KotlinAbiVersion
 import org.jetbrains.kotlin.library.metadata.FORWARD_DECLARATIONS_MODULE_NAME
 import org.jetbrains.kotlin.name.FqName
@@ -103,9 +104,13 @@ internal class KonanForwardDeclarationModuleDeserializer(
             kind.superClassId.relativeClassName.asString(),
             null, 0, null
         )
-        val superClassSymbol = linker.deserializeOrReturnUnboundIrSymbolIfPartialLinkageEnabled(
-            superClassSignature, BinarySymbolData.SymbolKind.CLASS_SYMBOL, this
-        ) as IrClassSymbol
+
+        @OptIn(IrLinkerInternalApi::class)
+        val superClassSymbol = linker.findAndEnqueueSymbolOrNull(
+            superClassSignature,
+            BinarySymbolData.SymbolKind.CLASS_SYMBOL
+        ) as IrClassSymbol? ?: error("Failed to deserialize class: ${superClassSignature.render()}")
+
         clazz.superTypes = listOf(superClassSymbol.defaultTypeWithoutArguments)
 
         val irPackage = getOrCreateContainingPackage(kind.packageFqName)
